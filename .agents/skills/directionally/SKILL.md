@@ -24,14 +24,21 @@ trivial or has no meaningful uncertainty.
 
 ## What this sends, and what it never sends
 
-Each consultation sends a plan explanation only: what you think is happening, what
-you're about to do, why, and what's uncertain.
+Two things go out, both written by you and both narrow. A consultation sends a plan
+explanation: what you think is happening, what you're about to do, why, and what's
+uncertain. A correction may additionally send a learning candidate — the extracted
+delta only, never the conversation (see "Learning from corrections").
 
 Never sent automatically:
 
 - credentials, tokens, secrets, or environment variables
 - complete transcripts
 - unrelated source code, file contents, or personal information
+
+A learning candidate is a rewritten claim, not a quote, and is subject to that list
+like anything else. If you cannot state the rule without a secret, a token, a customer
+name, or a key, there is no candidate to record. Name the shape of a value rather than
+its content — "the region is set per environment", not the region.
 
 A full session transcript is uploaded only on the user's explicit request, or
 explicit agreement after a one-time offer — never as a side effect of normal use.
@@ -205,6 +212,60 @@ When the user corrects the approach:
 
 Do not automatically upload or share the conversation.
 
+### Learning from corrections
+
+When the user materially corrects an assumption, approach, constraint, or definition
+of success:
+
+1. follow the correction — it is the controlling instruction;
+2. if it is reusable beyond this request, record a `learning_candidate` (see Protocol);
+3. show it once in the closing block. Never interrupt the correction to announce it.
+
+Record one when the correction changes an assumption about the environment, an
+architectural or product constraint, a method or workflow, an ownership boundary, a
+safety check, a domain rule, the definition of done, or a recurring failure pattern.
+Not for wording, task clarifications, one-time exceptions, anything already covered by
+an existing learning, or anything scoped to this request. Never from frustration or
+tone — a correction is a statement about the work.
+
+**Write it for an agent who was not here.** It is read later with none of this
+conversation. Name the repository, path, or command instead of "that file" or "this
+repo", and make `evidence` something that reader can go and look at.
+
+**Two fields matter more than the rule, and only you can answer them now.**
+
+`when_applies` — what you were doing when the mistake became possible, not what you
+concluded. "About to run package-manager commands in a repo whose lockfiles I hadn't
+inspected" tells a future agent when to pay attention. "Package manager confusion"
+does not.
+
+`when_wrong` — the case where following this misleads. If you know of none, say so and
+lower `confidence` rather than inventing a caveat; a rule with no known limits is
+usually one stated too broadly.
+
+**Write the narrowest rule that would have prevented the mistake, and stop there.**
+"This repository uses pnpm" is a repository rule; "always use pnpm" is folklore.
+Unsure between two scopes: take the narrower and lower the confidence. Deciding how
+far a learning generalises is not your job — `when_applies`, `when_wrong`, and
+`evidence` are what a compiler uses to widen it correctly, and widening it yourself
+destroys them. The compiler also writes the name, the problem as a class of mistake,
+and the consequence; leave those out.
+
+A correction is not consent to upload the full trace.
+
+#### On request
+
+`/directionally learn` — record candidates for what has happened so far, `source`
+`user_requested`, nothing else uploaded. `/directionally learn "<rule>"` — the user is
+stating the rule; record it as given rather than tidying it, and still fill in the
+other fields.
+
+| the user does this | you do this |
+|---|---|
+| materially corrects you | record a sanitised candidate automatically |
+| runs `/directionally learn` | extract or record candidates on request |
+| runs `~/.directionally/agent upload` | share the full trace, on explicit consent only |
+
 ### Sharing a full trace
 
 A full trace contains the complete conversation and may include file contents,
@@ -303,6 +364,7 @@ Use one stable `subsession_id` for the current run.
 {"op":"feedback","subsession_id":"run_001","ratings":{"<cid>":85},"reason":"Why the consideration helped or did not help."}
 {"op":"report","subsession_id":"run_001","did":"What changed or was answered.","issues":"Any blockers or caveats."}
 {"op":"impact_note","subsession_id":"run_001","note":"Concrete decision or implementation impact."}
+{"op":"learning_candidate","subsession_id":"run_001","source":"<explicit_user_correction | user_requested>","mistaken_assumption":"<what you believed>","correction":"<the user's correction, restated>","proposed_learning":"<narrowest rule that would have prevented it>","when_applies":"<the situation in which this becomes possible, recognisable without this session>","when_wrong":"<when following this would be the wrong call, or why you know of no such case>","scope":"<task | repository | project | team | user | general>","confidence":"<high | medium | low>","evidence":"<sanitised evidence a later reader could go and look at, or null>","exception":"<invalidation condition — what would make this stale — or null>"}
 ```
 
 Send any operation by passing it as the positional argument to `--session`:
@@ -312,7 +374,13 @@ Send any operation by passing it as the positional argument to `--session`:
 ```
 
 Use `elaborating` when consulting the rubber duck. Use `follow_up`, `outcome`,
-`feedback`, `report`, or `impact_note` when recording the result.
+`feedback`, `report`, or `impact_note` when recording the result. Use
+`learning_candidate` when a correction produced something reusable.
+
+`learning_candidate` is a proposal, not a rule in force. Whether it survives into
+future sessions is the user's call, not yours. `scope` and `confidence` gate that
+promotion rather than describing the rule, and must travel with it — a rule true of
+one repository must never reach a future agent as general advice.
 
 ## What the user sees
 
@@ -373,9 +441,10 @@ Carry it into the closing block under `📌 Still open`.
 
 ### The Directionally block — when you finish
 
-Write it only when Directionally surfaced something material that you used, checked,
-or acted on. If nothing did, write nothing at all — a session where nothing surfaced
-gets no block, not a block saying so.
+Write it when Directionally surfaced something material that you used, checked, or
+acted on, or when you recorded a learning candidate. If neither happened, write
+nothing at all — a session where nothing surfaced gets no block, not a block saying
+so.
 
 ```markdown
 🧭 **What Directionally surfaced**
@@ -389,6 +458,9 @@ gets no block, not a block saying so.
 
 📌 **Still open**
 <considerations raised and not settled>
+
+📚 **Directionally learned**
+<the proposed rule, its scope, and the evidence for it>
 ```
 
 Summarise only the considerations that mattered. Do not list every consideration the
@@ -401,6 +473,12 @@ a claim that Directionally prevented a failure unless the run shows that.
 
 `📌 Still open` covers considerations Directionally raised that remain unsettled —
 not the run's general risks and caveats.
+
+`📚 Directionally learned` appears only when you recorded a learning candidate. State
+the proposed rule, its scope, and the evidence, so the user can catch an
+overgeneralisation before it reaches a future session. Say it once. Do not ask for
+approval — an approval prompt after every correction is unbearable, and the point of
+showing it here is that the user can correct the correction if they want to.
 
 Also write this block whenever the user asks where things stand or what
 Directionally has noticed.
